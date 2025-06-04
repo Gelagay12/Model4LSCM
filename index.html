@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>East Africa College, Department of Logistics and Supply Chain Management Model Exam</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .question { margin-bottom: 20px; }
+    .options label { display: block; margin: 5px 0; }
+    #exam-container { display: none; }
+    #timer { font-weight: bold; margin-bottom: 20px; }
+    .correct { color: green; }
+    .incorrect { color: red; }
+    .error { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>East Africa College</h1>
+  <h2>Department of Logistics and Supply Chain Management</h2>
+  <h3>Model Exam</h3>
+
+  <div>
+    <label for="student-name">Enter your name:</label>
+    <input type="text" id="student-name" required />
+    <input type="file" id="aiken-file" accept=".txt" />
+    <button onclick="startExam()">Start Exam</button>
+  </div>
+
+  <div id="exam-container">
+    <div id="timer"></div>
+    <form id="exam-form"></form>
+    <button type="button" onclick="submitExam()">Submit</button>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    let questions = [];
+    let timerInterval;
+    const TIME_LIMIT = 60 * 90; // 90 minutes for 150 questions
+
+    function startExam() {
+      const fileInput = document.getElementById('aiken-file');
+      const nameInput = document.getElementById('student-name');
+      if (!fileInput.files.length || !nameInput.value.trim()) {
+        alert('Please enter your name and upload a .txt file.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l);
+        questions = parseAikenFormat(lines);
+        if (questions.length === 0) {
+          document.getElementById('result').innerHTML = '<p class="error">No valid questions found. Please check the AIKEN format.</p>';
+          return;
+        }
+        document.getElementById('exam-container').style.display = 'block';
+        displayQuestions();
+        startTimer();
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
+
+    function parseAikenFormat(lines) {
+      const qs = [];
+      let i = 0;
+      while (i < lines.length) {
+        const question = lines[i++];
+        const options = [];
+        let valid = true;
+        for (let j = 0; j < 4; j++) {
+          if (i >= lines.length || !/^([A-D])\)/.test(lines[i])) {
+            valid = false;
+            break;
+          }
+          options.push(lines[i++].substring(3).trim());
+        }
+        if (!valid || i >= lines.length || !/^ANSWER:/.test(lines[i])) {
+          i++; // Skip to next line
+          continue;
+        }
+        const answerLine = lines[i++];
+        const answer = answerLine.split(':')[1]?.trim();
+        if (!answer || !['A','B','C','D'].includes(answer)) continue;
+        qs.push({
+          id: qs.length + 1,
+          question,
+          options,
+          answer
+        });
+      }
+      return qs;
+    }
+
+    function displayQuestions() {
+      const form = document.getElementById('exam-form');
+      form.innerHTML = '';
+      questions.forEach(q => {
+        const div = document.createElement('div');
+        div.className = 'question';
+        div.innerHTML = `<p><strong>Q${q.id}:</strong> ${q.question}</p>`;
+        const optionsDiv = document.createElement('div');
+        optionsDiv.className = 'options';
+        q.options.forEach((opt, idx) => {
+          const letter = String.fromCharCode(65 + idx);
+          optionsDiv.innerHTML += `
+            <label>
+              <input type="radio" name="q${q.id}" value="${letter}" required />
+              ${letter}. ${opt}
+            </label>`;
+        });
+        div.appendChild(optionsDiv);
+        form.appendChild(div);
+      });
+    }
+
+    function startTimer() {
+      let time = TIME_LIMIT;
+      const timer = document.getElementById('timer');
+      timerInterval = setInterval(() => {
+        const minutes = Math.floor(time / 60);
+        const seconds = time % 60;
+        timer.textContent = `Time left: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        time--;
+        if (time < 0) {
+          clearInterval(timerInterval);
+          submitExam();
+        }
+      }, 1000);
+    }
+
+    function submitExam() {
+      clearInterval(timerInterval);
+      const form = document.getElementById('exam-form');
+      const formData = new FormData(form);
+      let score = 0;
+      const resultsHTML = [];
+
+      questions.forEach(q => {
+        const userAnswer = formData.get(`q${q.id}`);
+        const correct = userAnswer === q.answer;
+        if (correct) score++;
+        const letterIndex = { A: 0, B: 1, C: 2, D: 3 };
+        const feedback = `
+          <div class="question">
+            <p><strong>Q${q.id}:</strong> ${q.question}</p>
+            <ul>
+              ${q.options.map((opt, idx) => {
+                const letter = String.fromCharCode(65 + idx);
+                let style = '';
+                if (letter === q.answer) style = 'correct';
+                else if (letter === userAnswer) style = 'incorrect';
+                return `<li class="${style}">${letter}. ${opt}</li>`;
+              }).join('')}
+            </ul>
+            <p><strong>Your answer:</strong> ${userAnswer || 'No answer'} | <strong>Correct answer:</strong> ${q.answer}</p>
+          </div>
+        `;
+        resultsHTML.push(feedback);
+      });
+
+      const name = document.getElementById('student-name').value;
+      document.getElementById('result').innerHTML = `
+        <h2>${name}, your score is ${score}/${questions.length}</h2>
+        ${resultsHTML.join('')}
+      `;
+      document.getElementById('exam-container').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
